@@ -8,6 +8,8 @@
     content="width=device-width, initial-scale=1.0, viewport-fit=cover"
   >
 
+  <link rel="icon" type="image/svg+xml" href="favicon.svg">
+
   <title>WEISSMATT</title>
   
   <style>
@@ -45,7 +47,6 @@
       height: 100%;
 
       display: block;
-
 
       image-rendering: auto;
     }
@@ -88,20 +89,12 @@
       const COLS = 9;
       const ROWS = 9;
 
-
-
       const DESKTOP_SPACING = 56;
       const MOBILE_SPACING = 38;
 
-
-
       const BASE_R = 3.2;
 
-
-
       const MAX_R = 15;
-
-
 
       const POINTER_RADIUS = 115;
 
@@ -113,8 +106,6 @@
       const SPRING_K = 0.09;
 
       const DAMP = 0.78;
-
-
 
       const GRAVITY_R = 145;
 
@@ -176,11 +167,8 @@
         const rect =
           cv.getBoundingClientRect();
 
-
         W = rect.width;
         H = rect.height;
-
-
 
         DPR =
           Math.min(
@@ -188,14 +176,11 @@
             3
           );
 
-
         cv.width =
           Math.round(W * DPR);
 
         cv.height =
           Math.round(H * DPR);
-
-
 
         ctx.setTransform(
           DPR,
@@ -206,13 +191,10 @@
           0
         );
 
-
-
         SPACING =
           W <= 600
             ? MOBILE_SPACING
             : DESKTOP_SPACING;
-
 
         buildGrid();
       }
@@ -228,14 +210,11 @@
           (W -
             (COLS - 1) * SPACING) / 2;
 
-
         const oy =
           (H -
             (ROWS - 1) * SPACING) / 2;
 
-
         dots = [];
-
 
         for (
           let row = 0;
@@ -253,11 +232,9 @@
               ox +
               col * SPACING;
 
-
             const by =
               oy +
               row * SPACING;
-
 
             dots.push({
 
@@ -269,7 +246,6 @@
 
               vx: 0,
               vy: 0,
-
 
               r: BASE_R,
 
@@ -306,7 +282,6 @@
 
         });
 
-
         nextDropAt =
           t +
           1.8 +
@@ -324,7 +299,6 @@
           Math.min(delta, 32) /
           16.6667;
 
-
         t +=
           0.016 * dt;
 
@@ -336,7 +310,6 @@
         if (t >= nextDropAt) {
           spawnDrop();
         }
-
 
         drops =
           drops.filter(
@@ -354,8 +327,6 @@
           let tx = dot.bx;
           let ty = dot.by;
 
-
-
           let targetRadius =
             BASE_R;
 
@@ -370,11 +341,9 @@
               (t - drop.time) -
               dot.row * ROW_DELAY;
 
-
             if (localT <= 0) {
               continue;
             }
-
 
             const colDist =
               Math.abs(
@@ -382,18 +351,15 @@
                 drop.col
               );
 
-
             const lateral =
               Math.exp(
                 -(colDist ** 2) *
                 COL_SPREAD
               );
 
-
             if (lateral < 0.01) {
               continue;
             }
-
 
             ty +=
               drop.amp *
@@ -419,11 +385,9 @@
               pointer.x -
               dot.bx;
 
-
             const dy =
               pointer.y -
               dot.by;
-
 
             const distance =
               Math.hypot(
@@ -431,13 +395,10 @@
                 dy
               );
 
-
             if (
               distance <
               POINTER_RADIUS
             ) {
-
-
 
               const influence =
                 Math.max(
@@ -447,14 +408,10 @@
                   POINTER_RADIUS
                 );
 
-
-
               const strength =
                 influence *
                 influence *
                 influence;
-
-
 
               targetRadius =
                 BASE_R +
@@ -465,14 +422,11 @@
                 strength;
 
 
-
-
               if (distance > 0.001) {
 
                 const movement =
                   strength *
                   GRAVITY_MAX;
-
 
                 tx +=
                   (
@@ -480,7 +434,6 @@
                     distance
                   ) *
                   movement;
-
 
                 ty +=
                   (
@@ -505,7 +458,6 @@
             SPRING_K *
             dt;
 
-
           dot.vy +=
             (
               ty -
@@ -514,13 +466,11 @@
             SPRING_K *
             dt;
 
-
           dot.vx *=
             Math.pow(
               DAMP,
               dt
             );
-
 
           dot.vy *=
             Math.pow(
@@ -528,11 +478,9 @@
               dt
             );
 
-
           dot.x +=
             dot.vx *
             dt;
-
 
           dot.y +=
             dot.vy *
@@ -560,11 +508,8 @@
 
       function draw() {
 
-
-
         ctx.fillStyle =
           '#000';
-
 
         ctx.fillRect(
           0,
@@ -573,17 +518,12 @@
           H
         );
 
-
-
-
         ctx.fillStyle =
           '#fff';
-
 
         for (const dot of dots) {
 
           ctx.beginPath();
-
 
           ctx.arc(
             dot.x,
@@ -592,7 +532,6 @@
             0,
             Math.PI * 2
           );
-
 
           ctx.fill();
         }
@@ -611,16 +550,13 @@
         const rect =
           cv.getBoundingClientRect();
 
-
         pointer.x =
           clientX -
           rect.left;
 
-
         pointer.y =
           clientY -
           rect.top;
-
 
         pointer.active =
           true;
@@ -760,21 +696,17 @@
           now -
           lastTime;
 
-
         lastTime =
           now;
-
 
         update(delta);
 
         draw();
 
-
         requestAnimationFrame(
           animate
         );
       }
-
 
       requestAnimationFrame(
         animate
