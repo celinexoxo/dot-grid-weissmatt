@@ -1,719 +1,1744 @@
 <!DOCTYPE html>
+
 <html lang="de">
 <head>
-  <meta charset="UTF-8">
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 
-  <meta
-    name="viewport"
-    content="width=device-width, initial-scale=1.0, viewport-fit=cover"
-  >
+<link rel="icon" type="image/svg+xml" href="favicon.svg">
 
-  <link rel="icon" type="image/svg+xml" href="favicon.svg">
+<title>WEISSMATT</title>
 
-  <title>WEISSMATT</title>
-  
-  <style>
-    * {
-      box-sizing: border-box;
-      margin: 0;
-      padding: 0;
-    }
+<link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@300&display=swap" rel="stylesheet">
 
-    html,
-    body {
-      width: 100%;
-      height: 100%;
-      overflow: hidden;
-      background: #000;
-    }
+<style>
 
-    body {
-      position: fixed;
-      inset: 0;
-      touch-action: none;
-    }
+  *,
+  *::before,
+  *::after {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+  }
 
-    #wrap {
-      position: fixed;
-      inset: 50px;
-      background: #000;
-    }
+  html,
+  body {
+    width: 100%;
+    height: 100%;
+    background: #000;
+    overflow: hidden;
+  }
 
-    #cv {
-      position: absolute;
-      inset: 0;
+  body {
+    min-height: 100dvh;
+    overscroll-behavior: none;
+    -webkit-user-select: none;
+    user-select: none;
+  }
 
-      width: 100%;
-      height: 100%;
+  #wrap {
+    position: fixed;
+    inset: clamp(20px, 4vw, 50px);
+    background: #000;
+    overflow: hidden;
+    touch-action: none;
+    transform: translateZ(0);
+    -webkit-transform: translateZ(0);
+  }
 
-      display: block;
+  #svg {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    display: block;
+    overflow: visible;
+    transform: translateZ(0);
+    -webkit-transform: translateZ(0);
+    pointer-events: none;
+  }
 
-      image-rendering: auto;
-    }
+  .normal-dot {
+    fill: #fff;
+  }
 
-    @media (max-width: 600px) {
-      #wrap {
-        inset: 20px;
-      }
-    }
-  </style>
+  .liquid-group {
+    fill: #fff;
+    filter: url(#mercury);
+    transform: translateZ(0);
+    -webkit-transform: translateZ(0);
+  }
+
+</style>
+
 </head>
 
 <body>
 
-  <div id="wrap">
-    <canvas id="cv"></canvas>
-  </div>
+<div id="wrap">
+
+<svg
+id="svg"
+xmlns="http://www.w3.org/2000/svg"
+preserveAspectRatio="none"
+
+>
+
+```
+<defs>
+
+  <filter
+    id="mercury"
+    x="-100%"
+    y="-100%"
+    width="300%"
+    height="300%"
+    color-interpolation-filters="sRGB"
+  >
+
+    <feGaussianBlur
+      in="SourceGraphic"
+      stdDeviation="4"
+      result="blur"
+    />
+
+    <feColorMatrix
+      in="blur"
+      mode="matrix"
+      values="
+        1 0 0 0 0
+        0 1 0 0 0
+        0 0 1 0 0
+        0 0 0 26 -12
+      "
+      result="threshold"
+    />
+
+    <feGaussianBlur
+      in="threshold"
+      stdDeviation="0.45"
+    />
+
+  </filter>
+
+</defs>
+
+<g id="normalDots"></g>
+<g id="liquidGroups"></g>
+```
+
+  </svg>
+
+</div>
+
+<script>
+(() => {
+
+  'use strict';
 
 
-  <script>
-    (() => {
+  // =========================================================================
+  // DOM
+  // =========================================================================
 
-      // ==================================================
-      // CANVAS
-      // ==================================================
+  const wrap =
+    document.getElementById('wrap');
 
-      const cv =
-        document.getElementById('cv');
+  const svg =
+    document.getElementById('svg');
 
-      const ctx =
-        cv.getContext('2d', {
-          alpha: false
-        });
+  const normalDots =
+    document.getElementById('normalDots');
 
-
-      // ==================================================
-      // GRID
-      // ==================================================
-
-      const COLS = 9;
-      const ROWS = 9;
-
-      const DESKTOP_SPACING = 56;
-      const MOBILE_SPACING = 38;
-
-      const BASE_R = 3.2;
-
-      const MAX_R = 15;
-
-      const POINTER_RADIUS = 115;
+  const liquidGroups =
+    document.getElementById('liquidGroups');
 
 
-      // ==================================================
-      // PHYSICS
-      // ==================================================
-
-      const SPRING_K = 0.09;
-
-      const DAMP = 0.78;
-
-      const GRAVITY_R = 145;
-
-      const GRAVITY_MAX = 17;
+  const SVG_NS =
+    'http://www.w3.org/2000/svg';
 
 
-      // ==================================================
-      // WAVE
-      // ==================================================
+  // =========================================================================
+  // DEVICE
+  // =========================================================================
 
-      const ROW_DELAY = 0.055;
-
-      const BOUNCE_AMP = 10;
-
-      const DECAY = 4.2;
-
-      const FREQ = 13.0;
-
-      const COL_SPREAD = 0.65;
+  const IS_MOBILE =
+    window.matchMedia(
+      '(pointer: coarse)'
+    ).matches;
 
 
-      // ==================================================
-      // STATE
-      // ==================================================
+  // =========================================================================
+  // GRID
+  // =========================================================================
 
-      let W = 0;
-      let H = 0;
+  const COLS = 9;
+  const ROWS = 9;
 
-      let DPR = 1;
-
-      let SPACING =
-        DESKTOP_SPACING;
-
-      let dots = [];
-
-      let t = 0;
-
-      let lastTime =
-        performance.now();
-
-      let drops = [];
-
-      let nextDropAt = 0.6;
+  const MAX_SPACING = 56;
+  const MIN_SPACING = 34;
 
 
-      const pointer = {
-        x: -9999,
-        y: -9999,
-        active: false
-      };
+  /*
+   * RUHEGRÖSSE
+   *
+   * Desktop:
+   * vorher 5.5px
+   * jetzt 4.5px
+   *
+   * Mobile:
+   * vorher 4.5px
+   * jetzt 3.8px
+   */
+  const BASE_R =
+    IS_MOBILE
+      ? 3.8
+      : 4.5;
 
 
-      // ==================================================
-      // RESIZE
-      // ==================================================
+  /*
+   * Maximale Grösse aktiver Punkte
+   * bleibt bewusst erhalten.
+   */
+  const MAX_R =
+    IS_MOBILE
+      ? 20
+      : 24;
 
-      function resize() {
 
-        const rect =
-          cv.getBoundingClientRect();
+  // =========================================================================
+  // CURSOR
+  // =========================================================================
 
-        W = rect.width;
-        H = rect.height;
+  const CURSOR_RADIUS = 185;
 
-        DPR =
-          Math.min(
-            window.devicePixelRatio || 1,
-            3
-          );
+  const MAX_PULL =
+    IS_MOBILE
+      ? 21
+      : 25;
 
-        cv.width =
-          Math.round(W * DPR);
+  const ACTIVE_COUNT = 3;
 
-        cv.height =
-          Math.round(H * DPR);
 
-        ctx.setTransform(
-          DPR,
-          0,
-          0,
-          DPR,
-          0,
-          0
+  // =========================================================================
+  // DISTANCE SCALE
+  // =========================================================================
+
+  const DISTANT_RADIUS = 260;
+
+  const DISTANT_MIN_SCALE =
+    IS_MOBILE
+      ? 0.48
+      : 0.55;
+
+
+  // =========================================================================
+  // MOBILE OPACITY
+  // =========================================================================
+
+  const MOBILE_MIN_OPACITY = 0.16;
+
+  const MOBILE_FADE_RADIUS = 300;
+
+
+  // =========================================================================
+  // FUSION
+  // =========================================================================
+
+  const FUSION_DISTANCE = 40;
+
+  const RELEASE_DISTANCE = 49;
+
+
+  // =========================================================================
+  // PHYSICS
+  // =========================================================================
+
+  const SPRING_K = 0.075;
+
+  const DAMP = 0.80;
+
+
+  // =========================================================================
+  // DROP WAVE
+  // =========================================================================
+
+  const ROW_DELAY = 0.055;
+
+  const BOUNCE_AMP = 12;
+
+  const DECAY = 4.2;
+
+  const FREQ = 13;
+
+  const COL_SPREAD = 0.65;
+
+
+  // =========================================================================
+  // PERFORMANCE
+  // =========================================================================
+
+  const normalElements = [];
+
+  const liquidGroupsCache = [];
+
+  const MAX_FRAME_DT = 0.033;
+
+
+  // =========================================================================
+  // STATE
+  // =========================================================================
+
+  let W = 0;
+  let H = 0;
+
+  let dots = [];
+
+  let drops = [];
+
+  let t = 0;
+
+  let lastTime =
+    performance.now();
+
+  let nextDropAt = 0.6;
+
+
+  const mouse = {
+
+    x: -9999,
+    y: -9999,
+
+    on: false
+
+  };
+
+
+  // =========================================================================
+  // GRID SPACING
+  // =========================================================================
+
+  function getSpacing() {
+
+    const availableWidth =
+      W - 60;
+
+
+    return Math.min(
+      MAX_SPACING,
+      Math.max(
+        MIN_SPACING,
+        availableWidth /
+        (COLS - 1)
+      )
+    );
+
+  }
+
+
+  // =========================================================================
+  // CREATE SVG CIRCLE
+  // =========================================================================
+
+  function createCircle(className) {
+
+    const circle =
+      document.createElementNS(
+        SVG_NS,
+        'circle'
+      );
+
+
+    if (className) {
+
+      circle.setAttribute(
+        'class',
+        className
+      );
+
+    }
+
+
+    return circle;
+
+  }
+
+
+  // =========================================================================
+  // CREATE STATIC SVG STRUCTURE
+  // =========================================================================
+
+  function createRenderObjects() {
+
+    normalDots.replaceChildren();
+
+
+    for (
+      let i = 0;
+      i < COLS * ROWS;
+      i++
+    ) {
+
+      const circle =
+        createCircle(
+          'normal-dot'
         );
 
-        SPACING =
-          W <= 600
-            ? MOBILE_SPACING
-            : DESKTOP_SPACING;
 
-        buildGrid();
-      }
+      normalDots.appendChild(
+        circle
+      );
 
 
-      // ==================================================
-      // GRID
-      // ==================================================
+      normalElements.push(
+        circle
+      );
 
-      function buildGrid() {
+    }
 
-        const ox =
-          (W -
-            (COLS - 1) * SPACING) / 2;
 
-        const oy =
-          (H -
-            (ROWS - 1) * SPACING) / 2;
+    for (
+      let i = 0;
+      i < ACTIVE_COUNT;
+      i++
+    ) {
 
-        dots = [];
-
-        for (
-          let row = 0;
-          row < ROWS;
-          row++
-        ) {
-
-          for (
-            let col = 0;
-            col < COLS;
-            col++
-          ) {
-
-            const bx =
-              ox +
-              col * SPACING;
-
-            const by =
-              oy +
-              row * SPACING;
-
-            dots.push({
-
-              bx,
-              by,
-
-              x: bx,
-              y: by,
-
-              vx: 0,
-              vy: 0,
-
-              r: BASE_R,
-
-              col,
-              row
-
-            });
-          }
-        }
-      }
-
-
-      // ==================================================
-      // WAVE
-      // ==================================================
-
-      function spawnDrop() {
-
-        drops.push({
-
-          col:
-            Math.floor(
-              Math.random() * COLS
-            ),
-
-          time: t,
-
-          amp:
-            BOUNCE_AMP *
-            (
-              0.7 +
-              Math.random() * 0.55
-            )
-
-        });
-
-        nextDropAt =
-          t +
-          1.8 +
-          Math.random() * 2.4;
-      }
-
-
-      // ==================================================
-      // UPDATE
-      // ==================================================
-
-      function update(delta) {
-
-        const dt =
-          Math.min(delta, 32) /
-          16.6667;
-
-        t +=
-          0.016 * dt;
-
-
-        // ----------------------------------------------
-        // Automatische Welle
-        // ----------------------------------------------
-
-        if (t >= nextDropAt) {
-          spawnDrop();
-        }
-
-        drops =
-          drops.filter(
-            drop =>
-              (t - drop.time) < 2.5
-          );
-
-
-        // ----------------------------------------------
-        // Punkte
-        // ----------------------------------------------
-
-        for (const dot of dots) {
-
-          let tx = dot.bx;
-          let ty = dot.by;
-
-          let targetRadius =
-            BASE_R;
-
-
-          // ============================================
-          // WAVE
-          // ============================================
-
-          for (const drop of drops) {
-
-            const localT =
-              (t - drop.time) -
-              dot.row * ROW_DELAY;
-
-            if (localT <= 0) {
-              continue;
-            }
-
-            const colDist =
-              Math.abs(
-                dot.col -
-                drop.col
-              );
-
-            const lateral =
-              Math.exp(
-                -(colDist ** 2) *
-                COL_SPREAD
-              );
-
-            if (lateral < 0.01) {
-              continue;
-            }
-
-            ty +=
-              drop.amp *
-              Math.exp(
-                -DECAY *
-                localT
-              ) *
-              Math.sin(
-                FREQ *
-                localT
-              ) *
-              lateral;
-          }
-
-
-          // ============================================
-          // POINTER
-          // ============================================
-
-          if (pointer.active) {
-
-            const dx =
-              pointer.x -
-              dot.bx;
-
-            const dy =
-              pointer.y -
-              dot.by;
-
-            const distance =
-              Math.hypot(
-                dx,
-                dy
-              );
-
-            if (
-              distance <
-              POINTER_RADIUS
-            ) {
-
-              const influence =
-                Math.max(
-                  0,
-                  1 -
-                  distance /
-                  POINTER_RADIUS
-                );
-
-              const strength =
-                influence *
-                influence *
-                influence;
-
-              targetRadius =
-                BASE_R +
-                (
-                  MAX_R -
-                  BASE_R
-                ) *
-                strength;
-
-
-              if (distance > 0.001) {
-
-                const movement =
-                  strength *
-                  GRAVITY_MAX;
-
-                tx +=
-                  (
-                    dx /
-                    distance
-                  ) *
-                  movement;
-
-                ty +=
-                  (
-                    dy /
-                    distance
-                  ) *
-                  movement;
-              }
-            }
-          }
-
-
-          // ============================================
-          // SPRING
-          // ============================================
-
-          dot.vx +=
-            (
-              tx -
-              dot.x
-            ) *
-            SPRING_K *
-            dt;
-
-          dot.vy +=
-            (
-              ty -
-              dot.y
-            ) *
-            SPRING_K *
-            dt;
-
-          dot.vx *=
-            Math.pow(
-              DAMP,
-              dt
-            );
-
-          dot.vy *=
-            Math.pow(
-              DAMP,
-              dt
-            );
-
-          dot.x +=
-            dot.vx *
-            dt;
-
-          dot.y +=
-            dot.vy *
-            dt;
-
-
-          // ============================================
-          // RADIUS SMOOTHING
-          // ============================================
-
-          dot.r +=
-            (
-              targetRadius -
-              dot.r
-            ) *
-            0.16 *
-            dt;
-        }
-      }
-
-
-      // ==================================================
-      // DRAW
-      // ==================================================
-
-      function draw() {
-
-        ctx.fillStyle =
-          '#000';
-
-        ctx.fillRect(
-          0,
-          0,
-          W,
-          H
+      const group =
+        document.createElementNS(
+          SVG_NS,
+          'g'
         );
 
-        ctx.fillStyle =
-          '#fff';
 
-        for (const dot of dots) {
-
-          ctx.beginPath();
-
-          ctx.arc(
-            dot.x,
-            dot.y,
-            dot.r,
-            0,
-            Math.PI * 2
-          );
-
-          ctx.fill();
-        }
-      }
+      group.setAttribute(
+        'class',
+        'liquid-group'
+      );
 
 
-      // ==================================================
-      // POINTER
-      // ==================================================
+      const circles = [];
 
-      function setPointer(
-        clientX,
-        clientY
+
+      for (
+        let j = 0;
+        j < ACTIVE_COUNT;
+        j++
       ) {
 
-        const rect =
-          cv.getBoundingClientRect();
-
-        pointer.x =
-          clientX -
-          rect.left;
-
-        pointer.y =
-          clientY -
-          rect.top;
-
-        pointer.active =
-          true;
-      }
+        const circle =
+          createCircle();
 
 
-      // ==================================================
-      // MOUSE
-      // ==================================================
-
-      window.addEventListener(
-        'mousemove',
-        event => {
-
-          setPointer(
-            event.clientX,
-            event.clientY
-          );
-
-        },
-        {
-          passive: true
-        }
-      );
-
-
-      window.addEventListener(
-        'mouseleave',
-        () => {
-
-          pointer.active =
-            false;
-
-        }
-      );
-
-
-      // ==================================================
-      // TOUCH
-      // ==================================================
-
-      window.addEventListener(
-        'touchstart',
-        event => {
-
-          if (
-            event.touches.length
-          ) {
-
-            setPointer(
-              event.touches[0].clientX,
-              event.touches[0].clientY
-            );
-
-          }
-
-        },
-        {
-          passive: true
-        }
-      );
-
-
-      window.addEventListener(
-        'touchmove',
-        event => {
-
-          if (
-            event.touches.length
-          ) {
-
-            setPointer(
-              event.touches[0].clientX,
-              event.touches[0].clientY
-            );
-
-          }
-
-        },
-        {
-          passive: true
-        }
-      );
-
-
-      window.addEventListener(
-        'touchend',
-        () => {
-
-          pointer.active =
-            false;
-
-        },
-        {
-          passive: true
-        }
-      );
-
-
-      // ==================================================
-      // RESIZE
-      // ==================================================
-
-      window.addEventListener(
-        'resize',
-        resize
-      );
-
-
-      window.addEventListener(
-        'orientationchange',
-        () => {
-
-          setTimeout(
-            resize,
-            100
-          );
-
-        }
-      );
-
-
-      // ==================================================
-      // INITIALISIERUNG
-      // ==================================================
-
-      resize();
-
-
-      // ==================================================
-      // ANIMATION
-      // ==================================================
-
-      function animate(now) {
-
-        const delta =
-          now -
-          lastTime;
-
-        lastTime =
-          now;
-
-        update(delta);
-
-        draw();
-
-        requestAnimationFrame(
-          animate
+        circle.setAttribute(
+          'fill',
+          '#fff'
         );
+
+
+        circle.style.display =
+          'none';
+
+
+        group.appendChild(
+          circle
+        );
+
+
+        circles.push(
+          circle
+        );
+
       }
 
-      requestAnimationFrame(
-        animate
+
+      group.style.display =
+        'none';
+
+
+      liquidGroups.appendChild(
+        group
       );
 
-    })();
-  </script>
+
+      liquidGroupsCache.push({
+
+        group,
+        circles
+
+      });
+
+    }
+
+  }
+
+
+  // =========================================================================
+  // BUILD GRID
+  // =========================================================================
+
+  function buildGrid() {
+
+    const spacing =
+      getSpacing();
+
+
+    const gridWidth =
+      (COLS - 1) *
+      spacing;
+
+
+    const gridHeight =
+      (ROWS - 1) *
+      spacing;
+
+
+    const ox =
+      (W - gridWidth) /
+      2;
+
+
+    const oy =
+      (H - gridHeight) /
+      2;
+
+
+    dots = [];
+
+
+    for (
+      let row = 0;
+      row < ROWS;
+      row++
+    ) {
+
+      for (
+        let col = 0;
+        col < COLS;
+        col++
+      ) {
+
+        const bx =
+          ox +
+          col * spacing;
+
+
+        const by =
+          oy +
+          row * spacing;
+
+
+        dots.push({
+
+          bx,
+          by,
+
+          x: bx,
+          y: by,
+
+          vx: 0,
+          vy: 0,
+
+          r: BASE_R,
+
+          targetR:
+            BASE_R,
+
+          opacity: 1,
+
+          targetOpacity: 1,
+
+          col,
+          row,
+
+          active: 0,
+
+          fused: false
+
+        });
+
+      }
+
+    }
+
+  }
+
+
+  // =========================================================================
+  // DROP
+  // =========================================================================
+
+  function spawnDrop() {
+
+    drops.push({
+
+      col:
+        Math.floor(
+          Math.random() *
+          COLS
+        ),
+
+      time: t,
+
+      amp:
+        BOUNCE_AMP *
+        (
+          0.7 +
+          Math.random() *
+          0.55
+        )
+
+    });
+
+
+    nextDropAt =
+      t +
+      1.8 +
+      Math.random() *
+      2.4;
+
+  }
+
+
+  // =========================================================================
+  // FIND THREE CLOSEST POINTS
+  // =========================================================================
+
+  function getActiveDots() {
+
+    if (!mouse.on) {
+
+      return [];
+
+    }
+
+
+    let first = null;
+    let second = null;
+    let third = null;
+
+    let firstDist = Infinity;
+    let secondDist = Infinity;
+    let thirdDist = Infinity;
+
+
+    const radiusSq =
+      CURSOR_RADIUS *
+      CURSOR_RADIUS;
+
+
+    for (const d of dots) {
+
+      const dx =
+        d.bx -
+        mouse.x;
+
+
+      const dy =
+        d.by -
+        mouse.y;
+
+
+      const distanceSq =
+        dx * dx +
+        dy * dy;
+
+
+      if (
+        distanceSq >
+        radiusSq
+      ) {
+
+        continue;
+
+      }
+
+
+      if (
+        distanceSq <
+        firstDist
+      ) {
+
+        third =
+          second;
+
+        thirdDist =
+          secondDist;
+
+
+        second =
+          first;
+
+        secondDist =
+          firstDist;
+
+
+        first =
+          d;
+
+        firstDist =
+          distanceSq;
+
+      }
+
+      else if (
+        distanceSq <
+        secondDist
+      ) {
+
+        third =
+          second;
+
+        thirdDist =
+          secondDist;
+
+
+        second =
+          d;
+
+        secondDist =
+          distanceSq;
+
+      }
+
+      else if (
+        distanceSq <
+        thirdDist
+      ) {
+
+        third =
+          d;
+
+        thirdDist =
+          distanceSq;
+
+      }
+
+    }
+
+
+    const result = [];
+
+
+    if (first) {
+      result.push(first);
+    }
+
+    if (second) {
+      result.push(second);
+    }
+
+    if (third) {
+      result.push(third);
+    }
+
+
+    return result;
+
+  }
+
+
+  // =========================================================================
+  // PHYSICS
+  // =========================================================================
+
+  function tick(dt) {
+
+    t += dt;
+
+
+    if (
+      t >= nextDropAt
+    ) {
+
+      spawnDrop();
+
+    }
+
+
+    if (
+      drops.length
+    ) {
+
+      drops =
+        drops.filter(
+          drop =>
+            (
+              t -
+              drop.time
+            ) < 2.5
+        );
+
+    }
+
+
+    const activeDots =
+      getActiveDots();
+
+
+    for (const d of dots) {
+
+      d.active = 0;
+
+    }
+
+
+    for (const d of activeDots) {
+
+      d.active = 1;
+
+    }
+
+
+    // =======================================================================
+    // INDIVIDUAL PHYSICS
+    // =======================================================================
+
+    for (const d of dots) {
+
+      let tx =
+        d.bx;
+
+
+      let ty =
+        d.by;
+
+
+      let targetRadius =
+        BASE_R;
+
+
+      let targetOpacity =
+        1;
+
+
+      // =====================================================================
+      // DISTANCE SCALE + MOBILE FADE
+      // =====================================================================
+
+      if (mouse.on) {
+
+        const dx =
+          d.bx -
+          mouse.x;
+
+
+        const dy =
+          d.by -
+          mouse.y;
+
+
+        const distanceSq =
+          dx * dx +
+          dy * dy;
+
+
+        const distance =
+          Math.sqrt(
+            distanceSq
+          );
+
+
+        // ===================================================================
+        // SIZE
+        // ===================================================================
+
+        if (
+          distance <
+          DISTANT_RADIUS
+        ) {
+
+          const normalized =
+            1 -
+            distance /
+            DISTANT_RADIUS;
+
+
+          const influence =
+            normalized *
+            normalized *
+            (
+              3 -
+              2 *
+              normalized
+            );
+
+
+          const scale =
+            DISTANT_MIN_SCALE +
+            (
+              1 -
+              DISTANT_MIN_SCALE
+            ) *
+            influence;
+
+
+          targetRadius =
+            BASE_R *
+            scale;
+
+        }
+        else {
+
+          targetRadius =
+            BASE_R *
+            DISTANT_MIN_SCALE;
+
+        }
+
+
+        // ===================================================================
+        // MOBILE OPACITY
+        // ===================================================================
+
+        if (IS_MOBILE) {
+
+          const fadeNormalized =
+            Math.max(
+              0,
+              Math.min(
+                1,
+                1 -
+                distance /
+                MOBILE_FADE_RADIUS
+              )
+            );
+
+
+          const fade =
+            fadeNormalized *
+            fadeNormalized *
+            (
+              3 -
+              2 *
+              fadeNormalized
+            );
+
+
+          targetOpacity =
+            MOBILE_MIN_OPACITY +
+            (
+              1 -
+              MOBILE_MIN_OPACITY
+            ) *
+            fade;
+
+        }
+
+      }
+      else {
+
+        targetOpacity =
+          1;
+
+      }
+
+
+      // =====================================================================
+      // DROP WAVE
+      // =====================================================================
+
+      for (const drop of drops) {
+
+        const localT =
+          (
+            t -
+            drop.time
+          ) -
+          d.row *
+          ROW_DELAY;
+
+
+        if (
+          localT <= 0
+        ) {
+
+          continue;
+
+        }
+
+
+        const colDist =
+          Math.abs(
+            d.col -
+            drop.col
+          );
+
+
+        const lateral =
+          Math.exp(
+            -(
+              colDist *
+              colDist
+            ) *
+            COL_SPREAD
+          );
+
+
+        if (
+          lateral < 0.01
+        ) {
+
+          continue;
+
+        }
+
+
+        ty +=
+          drop.amp *
+          Math.exp(
+            -DECAY *
+            localT
+          ) *
+          Math.sin(
+            FREQ *
+            localT
+          ) *
+          lateral;
+
+      }
+
+
+      // =====================================================================
+      // CURSOR
+      // =====================================================================
+
+      if (d.active) {
+
+        const dx =
+          mouse.x -
+          d.bx;
+
+
+        const dy =
+          mouse.y -
+          d.by;
+
+
+        const distSq =
+          dx * dx +
+          dy * dy;
+
+
+        if (
+          distSq > 0.25 &&
+          distSq <
+          CURSOR_RADIUS *
+          CURSOR_RADIUS
+        ) {
+
+          const dist =
+            Math.sqrt(
+              distSq
+            );
+
+
+          const normalized =
+            1 -
+            dist /
+            CURSOR_RADIUS;
+
+
+          const pull =
+            normalized *
+            normalized;
+
+
+          const offset =
+            pull *
+            MAX_PULL;
+
+
+          tx +=
+            (
+              dx /
+              dist
+            ) *
+            offset;
+
+
+          ty +=
+            (
+              dy /
+              dist
+            ) *
+            offset;
+
+
+          targetRadius =
+            BASE_R +
+            (
+              MAX_R -
+              BASE_R
+            ) *
+            pull;
+
+
+          if (IS_MOBILE) {
+
+            targetOpacity =
+              1;
+
+          }
+
+        }
+
+      }
+
+
+      // =====================================================================
+      // SPRING
+      // =====================================================================
+
+      d.vx +=
+        (
+          tx -
+          d.x
+        ) *
+        SPRING_K;
+
+
+      d.vy +=
+        (
+          ty -
+          d.y
+        ) *
+        SPRING_K;
+
+
+      d.vx *=
+        DAMP;
+
+
+      d.vy *=
+        DAMP;
+
+
+      d.x +=
+        d.vx;
+
+
+      d.y +=
+        d.vy;
+
+
+      // =====================================================================
+      // RADIUS
+      // =====================================================================
+
+      d.targetR =
+        targetRadius;
+
+
+      d.r +=
+        (
+          d.targetR -
+          d.r
+        ) *
+        0.12;
+
+
+      // =====================================================================
+      // OPACITY
+      // =====================================================================
+
+      d.targetOpacity =
+        targetOpacity;
+
+
+      d.opacity +=
+        (
+          d.targetOpacity -
+          d.opacity
+        ) *
+        0.16;
+
+    }
+
+  }
+
+
+  // =========================================================================
+  // FUSION GROUPING
+  // =========================================================================
+
+  function getFusionGroups() {
+
+    const active = [];
+
+
+    for (const d of dots) {
+
+      if (
+        d.active
+      ) {
+
+        active.push(d);
+
+      }
+
+    }
+
+
+    if (
+      active.length < 2
+    ) {
+
+      return [];
+
+    }
+
+
+    const groups = [];
+
+    const used =
+      new Set();
+
+
+    const fusionDistanceSq =
+      FUSION_DISTANCE *
+      FUSION_DISTANCE;
+
+
+    for (
+      const start of active
+    ) {
+
+      if (
+        used.has(start)
+      ) {
+
+        continue;
+
+      }
+
+
+      const group =
+        [start];
+
+
+      used.add(
+        start
+      );
+
+
+      for (
+        const candidate of active
+      ) {
+
+        if (
+          used.has(candidate)
+        ) {
+
+          continue;
+
+        }
+
+
+        let touches =
+          false;
+
+
+        for (
+          const member of group
+        ) {
+
+          const dx =
+            member.x -
+            candidate.x;
+
+
+          const dy =
+            member.y -
+            candidate.y;
+
+
+          const distanceSq =
+            dx * dx +
+            dy * dy;
+
+
+          if (
+            distanceSq <=
+            fusionDistanceSq
+          ) {
+
+            touches =
+              true;
+
+            break;
+
+          }
+
+        }
+
+
+        if (
+          touches &&
+          group.length <
+          ACTIVE_COUNT
+        ) {
+
+          group.push(
+            candidate
+          );
+
+
+          used.add(
+            candidate
+          );
+
+        }
+
+      }
+
+
+      if (
+        group.length >= 2
+      ) {
+
+        groups.push(
+          group
+        );
+
+      }
+
+    }
+
+
+    return groups;
+
+  }
+
+
+  // =========================================================================
+  // RENDER
+  // =========================================================================
+
+  function render() {
+
+    const fusionGroups =
+      getFusionGroups();
+
+
+    const fusedDots =
+      new Set();
+
+
+    for (
+      const group of fusionGroups
+    ) {
+
+      for (
+        const d of group
+      ) {
+
+        d.fused =
+          true;
+
+
+        fusedDots.add(
+          d
+        );
+
+      }
+
+    }
+
+
+    // =======================================================================
+    // NORMAL DOTS
+    // =======================================================================
+
+    for (
+      let i = 0;
+      i < dots.length;
+      i++
+    ) {
+
+      const d =
+        dots[i];
+
+
+      const circle =
+        normalElements[i];
+
+
+      if (
+        fusedDots.has(d)
+      ) {
+
+        circle.style.display =
+          'none';
+
+        continue;
+
+      }
+
+
+      circle.style.display =
+        'block';
+
+
+      circle.setAttribute(
+        'cx',
+        d.x
+      );
+
+
+      circle.setAttribute(
+        'cy',
+        d.y
+      );
+
+
+      circle.setAttribute(
+        'r',
+        d.r
+      );
+
+
+      circle.setAttribute(
+        'opacity',
+        IS_MOBILE
+          ? d.opacity
+          : 1
+      );
+
+    }
+
+
+    // =======================================================================
+    // LIQUID GROUPS
+    // =======================================================================
+
+    for (
+      const cached of
+      liquidGroupsCache
+    ) {
+
+      cached.group.style.display =
+        'none';
+
+
+      for (
+        const circle of
+        cached.circles
+      ) {
+
+        circle.style.display =
+          'none';
+
+      }
+
+    }
+
+
+    for (
+      let groupIndex = 0;
+      groupIndex <
+      fusionGroups.length;
+      groupIndex++
+    ) {
+
+      const group =
+        fusionGroups[
+          groupIndex
+        ];
+
+
+      const cached =
+        liquidGroupsCache[
+          groupIndex
+        ];
+
+
+      if (!cached) {
+        continue;
+      }
+
+
+      cached.group.style.display =
+        'block';
+
+
+      for (
+        let i = 0;
+        i < group.length;
+        i++
+      ) {
+
+        const d =
+          group[i];
+
+
+        const circle =
+          cached.circles[i];
+
+
+        circle.style.display =
+          'block';
+
+
+        circle.setAttribute(
+          'cx',
+          d.x
+        );
+
+
+        circle.setAttribute(
+          'cy',
+          d.y
+        );
+
+
+        circle.setAttribute(
+          'r',
+          d.r
+        );
+
+
+        circle.setAttribute(
+          'opacity',
+          1
+        );
+
+      }
+
+    }
+
+  }
+
+
+  // =========================================================================
+  // POINTER
+  // =========================================================================
+
+  function updatePointer(
+    x,
+    y
+  ) {
+
+    const rect =
+      wrap.getBoundingClientRect();
+
+
+    mouse.x =
+      x -
+      rect.left;
+
+
+    mouse.y =
+      y -
+      rect.top;
+
+
+    mouse.on =
+      true;
+
+  }
+
+
+  wrap.addEventListener(
+    'pointermove',
+    e => {
+
+      updatePointer(
+        e.clientX,
+        e.clientY
+      );
+
+    },
+    {
+      passive: true
+    }
+  );
+
+
+  wrap.addEventListener(
+    'pointerdown',
+    e => {
+
+      updatePointer(
+        e.clientX,
+        e.clientY
+      );
+
+    },
+    {
+      passive: true
+    }
+  );
+
+
+  wrap.addEventListener(
+    'pointerleave',
+    () => {
+
+      mouse.on =
+        false;
+
+    },
+    {
+      passive: true
+    }
+  );
+
+
+  wrap.addEventListener(
+    'pointercancel',
+    () => {
+
+      mouse.on =
+        false;
+
+    },
+    {
+      passive: true
+    }
+  );
+
+
+  window.addEventListener(
+    'pointerup',
+    () => {
+
+      if (
+        window.matchMedia(
+          '(pointer: coarse)'
+        ).matches
+      ) {
+
+        mouse.on =
+          false;
+
+      }
+
+    },
+    {
+      passive: true
+    }
+  );
+
+
+  // =========================================================================
+  // RESIZE
+  // =========================================================================
+
+  let resizeTimer;
+
+
+  window.addEventListener(
+    'resize',
+    () => {
+
+      clearTimeout(
+        resizeTimer
+      );
+
+
+      resizeTimer =
+        setTimeout(
+          resize,
+          80
+        );
+
+    },
+    {
+      passive: true
+    }
+  );
+
+
+  window.addEventListener(
+    'orientationchange',
+    () => {
+
+      setTimeout(
+        resize,
+        120
+      );
+
+    },
+    {
+      passive: true
+    }
+  );
+
+
+  function resize() {
+
+    const rect =
+      wrap.getBoundingClientRect();
+
+
+    W =
+      rect.width;
+
+
+    H =
+      rect.height;
+
+
+    svg.setAttribute(
+      'viewBox',
+      `0 0 ${W} ${H}`
+    );
+
+
+    buildGrid();
+
+  }
+
+
+  // =========================================================================
+  // ANIMATION LOOP
+  // =========================================================================
+
+  function loop(now) {
+
+    const dt =
+      Math.min(
+        (
+          now -
+          lastTime
+        ) /
+        1000,
+        MAX_FRAME_DT
+      );
+
+
+    lastTime =
+      now;
+
+
+    tick(dt);
+
+    render();
+
+
+    requestAnimationFrame(
+      loop
+    );
+
+  }
+
+
+  // =========================================================================
+  // INIT
+  // =========================================================================
+
+  createRenderObjects();
+
+  resize();
+
+
+  requestAnimationFrame(
+    loop
+  );
+
+
+})();
+</script>
 
 </body>
 </html>
